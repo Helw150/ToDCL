@@ -80,7 +80,9 @@ class Seq2SeqToD(pl.LightningModule):
             self.model.set_active_adapters(task_id)
             lm_logits, *_ = self.model(
                 input_ids=batch["input_id_PPL"].to(device),
-                attention_mask=None,
+                attention_mask=batch["attention_mask_PPL"].to(device)
+                if "gpt2" not in self.model_name
+                else None,
                 labels=None,
             )
         # Shift so that tokens < n predict n

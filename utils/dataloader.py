@@ -266,37 +266,6 @@ def collate_fn(data, tokenizer):
         output_batch["input_ids"] == tokenizer.pad_token_id, -100
     )
     batch_data["decoder_output"] = output_batch["input_ids"]
-    return batch_data
-
-
-def collate_fn_GPT2(data, tokenizer):
-    batch_data = {}
-    for key in data[0]:
-        batch_data[key] = [d[key] for d in data]
-
-    input_batch = tokenizer(
-        batch_data["history_reply"],
-        padding=True,
-        return_tensors="pt",
-        truncation=False,
-        add_special_tokens=False,
-        return_attention_mask=False,
-    )
-    batch_data["encoder_input"] = input_batch["input_ids"]
-    batch_data["attention_mask"] = None
-    output_batch = tokenizer(
-        batch_data["history_reply"],
-        padding=True,
-        return_tensors="pt",
-        truncation=False,
-        add_special_tokens=False,
-        return_attention_mask=False,
-    )
-    # replace the padding id to -100 for cross-entropy
-    output_batch["input_ids"].masked_fill_(
-        output_batch["input_ids"] == tokenizer.pad_token_id, -100
-    )
-    batch_data["decoder_output"] = output_batch["input_ids"]
 
     #### DATA FOR COMPUTING PERPLEXITY OF DIALOGUE HISTORY ==> FOR ADAPTER
     batched_history = tokenizer(
@@ -314,11 +283,11 @@ def collate_fn_GPT2(data, tokenizer):
         return_tensors="pt",
         truncation=False,
         add_special_tokens=False,
-        return_attention_mask=False,
     )
     batched_history_out["input_ids"].masked_fill_(
         batched_history_out["input_ids"] == tokenizer.pad_token_id, -100
     )
+    batch_data["attention_mask_PPL"] = batched_history_out["attention_mask"]
     batch_data["output_id_PPL"] = batched_history_out[
         "input_ids"
     ]  ### basically just remove pad from ppl calculation
@@ -326,7 +295,7 @@ def collate_fn_GPT2(data, tokenizer):
 
 
 def make_loader(args, list_sample, tokenizer):
-    collate_fn_ = collate_fn_GPT2 if ("gpt2" in args.model_checkpoint) else collate_fn
+    collate_fn_ = collate_fn
     return DataLoader(
         DatasetTrain(list_sample),
         batch_size=args.train_batch_size,
@@ -344,7 +313,7 @@ def get_data_loaders(args, tokenizer, test=False):
         develop=args.debug,
     )
 
-    collate_fn_ = collate_fn_GPT2 if ("gpt2" in args.model_checkpoint) else collate_fn
+    collate_fn_ = collate_fn
     if test:
         datasets = {"test": {}}
     else:

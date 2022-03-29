@@ -286,7 +286,7 @@ def train(hparams, *args):
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--model_checkpoint", type=str, default="t5-base")
+    parser.add_argument("--model_checkpoint", type=str, default="gpt2")
     parser.add_argument(
         "--train_batch_size", type=int, default=1, help="Batch size for training"
     )
