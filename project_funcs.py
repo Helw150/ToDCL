@@ -1,22 +1,26 @@
-def update_adapters(task_id, task_loader, model):
-    new_adapter_weights = find_best_merge(task_id, task_loader, model)
+def update_adapters(task_id, task_loader, val_loader, model):
+    new_adapter_weights = find_best_merge(task_id, task_loader, val_loader, model)
 
     # Modify the weights of the adapters based on what is returned
 
     return model
 
 
-def find_best_merge(current_task_id, task_loader, model):
+def find_best_merge(current_task_id, task_loader, val_loader, model):
+    best_score = float('-inf')
     best_weights = None
 
     # Iterate Through and Find Best Merge
     for task_id in model.task_list_seen:
         score, weights = score_merge(current_task_id, task_id, task_loader, model)
+        if score > best_score:
+            best_score = score
+            best_weights = weights
 
     return best_weights
 
 
-def score_merge(current_task_id, task_id, task_loader, model):
+def score_merge(current_task_id, task_id, task_loader, val_loader, model):
     score = None
     weights = torch.zeros(100)
 

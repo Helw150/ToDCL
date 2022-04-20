@@ -17,12 +17,13 @@ from utils.dataloader import (
     make_loader,
     ValEveryNSteps,
 )
-
 from test import (
     test_model_seq2seq,
     generate_sample_prev_task,
     test_model_seq2seq_ADAPTER,
 )
+from project_funcs import update_adapters
+
 from collections import defaultdict
 from CL_learner import Seq2SeqToD
 
@@ -236,7 +237,7 @@ def train(hparams, *args):
                 }
                 model.model.load_state_dict(checkpoint["state_dict"])
             elif hparams.merge == True:
-                model = update_adapters(task_id, task_loader, model)
+                model = update_adapters(task_id, task_loader, val_loader, model)
 
             # testing the model by generating the answers
             if hparams.test_every_step:
