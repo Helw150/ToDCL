@@ -21,11 +21,16 @@ def find_best_merge(current_task_id, task_loader, model):
     # want to iterate through model.parameters() which will give you name,tensor
     # In the code they check if ["adapter" in layer_name] to determine
     # if this is an adapter layer
-    best_weights = dict()
+
+    best_score = float('inf')
+    best_weights = None
 
     # Iterate Through and Find Best Merge
     for task_id in model.task_list_seen:
         score, weights = score_merge(current_task_id, task_id, task_loader, model)
+        if score < best_score:
+            best_score = score
+            best_weights = weights
 
     return best_weights
 
