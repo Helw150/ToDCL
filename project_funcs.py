@@ -41,7 +41,7 @@ def score_merge(current_task_id, task_id, task_loader, model):
 
     best_score = float("-inf")
     best_weights = None
-    for lamb in range(0, 1, 0.1):
+    for lamb in range(0.1, 1, 0.1):
         weights = set_params(
             model,
             fisher_source,

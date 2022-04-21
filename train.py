@@ -230,8 +230,6 @@ def train(hparams, *args):
                     for k, v in checkpoint["state_dict"].items()
                 }
                 model.model.load_state_dict(checkpoint["state_dict"])
-            elif hparams.merge == True:
-                model = update_adapters(task_id, val_loader[task_id], model)
 
             # testing the model by generating the answers
             if hparams.test_every_step:
@@ -244,6 +242,16 @@ def train(hparams, *args):
                         test_datasets,
                         time=f"{task_num}_{task_id}",
                     )
+                    if hparams.merge == True:
+                        model = update_adapters(task_id, val_loader[task_id], model)
+                        test_model_seq2seq_ADAPTER(
+                            hparams,
+                            model,
+                            model.tokenizer,
+                            dev_val_loader,
+                            test_datasets,
+                            time=f"{task_num}_{task_id}",
+                        )
                 else:
                     test_model_seq2seq(
                         hparams,
@@ -252,6 +260,8 @@ def train(hparams, *args):
                         dev_val_loader,
                         time=f"{task_num}_{task_id}",
                     )
+            elif hparams.merge == True and hparams.CL == "ADAPTER":
+                model = update_adapters(task_id, val_loader[task_id], model)
 
             ## END CORE
 
