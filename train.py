@@ -231,7 +231,7 @@ def train(hparams, *args):
                 }
                 model.model.load_state_dict(checkpoint["state_dict"])
             elif hparams.merge == True:
-                model = update_adapters(task_id, val_loader[task_id], model, trainer)
+                model = update_adapters(task_id, val_loader[task_id], model)
 
             # testing the model by generating the answers
             if hparams.test_every_step:
