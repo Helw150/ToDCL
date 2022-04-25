@@ -25,6 +25,7 @@ from test import (
 )
 from collections import defaultdict
 from CL_learner import Seq2SeqToD
+from project_funcs import update_adapters
 
 from argparse import ArgumentParser
 
