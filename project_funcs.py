@@ -1,14 +1,16 @@
+from tqdm import tqdm
+
 def update_adapters(task_id, task_loader, model):
     new_adapter_weights = find_best_merge(task_id, task_loader, model)
     # Modify the weights of the adapters based on what is returned
-    active_state_dict = model.state_dict()
+    active_state_dict = model.model.state_dict()
 
     # Change the current model to have adapter weights that were
     # selected by [find_best_merge]
     for layer_name, new_tensor_weight in new_adapter_weights.keys():
         active_state_dict[layer_name] = new_tensor_weight
 
-    model.load_state_dict(active_state_dict)
+    model.model.load_state_dict(active_state_dict)
     return model
 
 
@@ -26,8 +28,8 @@ def find_best_merge(current_task_id, task_loader, model):
     best_weights = None
 
     # Iterate Through and Find Best Merge
-    for task_id in model.task_list_seen:
-        score, weights = score_merge(current_task_id, task_id, task_loader, model)
+    for task_id in tqdm(model.task_list_seen):
+        score, weights = score_merge(current_task_id, task_id, task_loader, model.model)
         if score < best_score:
             best_score = score
             best_weights = weights
