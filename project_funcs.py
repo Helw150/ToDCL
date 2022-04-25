@@ -1,7 +1,7 @@
 from tqdm import tqdm
 
-def update_adapters(task_id, task_loader, model):
-    new_adapter_weights = find_best_merge(task_id, task_loader, model)
+def update_adapters(task_name, task_loader, model):
+    new_adapter_weights = find_best_merge(task_name, task_loader, model)
     # Modify the weights of the adapters based on what is returned
     active_state_dict = model.model.state_dict()
 
@@ -14,7 +14,7 @@ def update_adapters(task_id, task_loader, model):
     return model
 
 
-def find_best_merge(current_task_id, task_loader, model):
+def find_best_merge(current_task_name, task_loader, model):
     # I am expecting best weights to simply be
     # a dictionary of named layer to the tensor of weights/bias
     # The named layer parameter e.g. ("model.encoder.block.0.layer.0.adapters.3.adapter_up.weight" : weight tensor)
@@ -27,8 +27,10 @@ def find_best_merge(current_task_id, task_loader, model):
     best_score = float('inf')
     best_weights = None
 
+    current_task_id = str(model.task_list_seen.index(current_task_name))
     # Iterate Through and Find Best Merge
-    for task_id in tqdm(model.task_list_seen):
+    for task_name in tqdm(model.task_list_seen):
+        task_id = model.task_list_seen.index(task_name)
         score, weights = score_merge(current_task_id, task_id, task_loader, model.model)
         if score < best_score:
             best_score = score
@@ -71,7 +73,7 @@ def evaluate(task_loader, model):
     loss = 0
     with torch.no_grad():
         for idx, inputs in enumerate(task_loader):
-            loss -= self.model(
+            loss -= model.model(
                 input_ids=inputs["encoder_input"],
                 attention_mask=inputs["attention_mask"],
                 labels=inputs["decoder_output"],
@@ -128,7 +130,7 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
             if isinstance(v, torch.Tensor):
                 inputs[k] = v
 
-        loss = self.model(
+        loss = model.model(
             input_ids=inputs["encoder_input"],
             attention_mask=inputs["attention_mask"],
             labels=inputs["decoder_output"],
