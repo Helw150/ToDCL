@@ -1,13 +1,18 @@
+import torch
 from tqdm import tqdm
 
 def update_adapters(task_name, task_loader, model):
     new_adapter_weights = find_best_merge(task_name, task_loader, model)
     # Modify the weights of the adapters based on what is returned
     active_state_dict = model.model.state_dict()
+    task_id = str(model.task_list_seen.index(task_name))
 
     # Change the current model to have adapter weights that were
     # selected by [find_best_merge]
-    for layer_name, new_tensor_weight in new_adapter_weights.keys():
+    for layer_name, new_tensor_weight in new_adapter_weights.items():
+        print(f"My name is: {layer_name}")
+        print(f'All the names are: {active_state_dict.keys()}')
+        assert active_state_dict.get(layer_name) is not None
         active_state_dict[layer_name] = new_tensor_weight
 
     model.model.load_state_dict(active_state_dict)
@@ -24,33 +29,65 @@ def find_best_merge(current_task_name, task_loader, model):
     # In the code they check if ["adapter" in layer_name] to determine
     # if this is an adapter layer
 
-    best_score = float('inf')
+    best_score = float('-inf')
     best_weights = None
 
     current_task_id = str(model.task_list_seen.index(current_task_name))
     # Iterate Through and Find Best Merge
     for task_name in tqdm(model.task_list_seen):
-        task_id = model.task_list_seen.index(task_name)
-        score, weights = score_merge(current_task_id, task_id, task_loader, model.model)
-        if score < best_score:
+        task_id = str(model.task_list_seen.index(task_name))
+        score, weights = score_merge(current_task_id, task_id, task_loader, model)
+        if score > best_score:
             best_score = score
+            best_weights = weights
+        if best_weights is None:
             best_weights = weights
 
     return best_weights
 
+def name_parser(task_id, original_name):
+    # Experimentally, the task id seems to be put at index 7
+    parts = original_name.split(".")
+    assert parts[7] == task_id
+    prefix = ".".join(parts[:7])
+    suffix = ".".join(parts[8:])
+    return prefix, suffix
 
 def score_merge(current_task_id, task_id, task_loader, model):
     score = None
 
-    fisher_source, param_source = compute_fisher(task_loader, model, task_id)
-    fisher_target, param_target = compute_fisher(task_loader, model, current_task_id)
+    loss = 0
+    for idx, inputs in enumerate(task_loader):
+        current_output = model.model(
+            input_ids=inputs["encoder_input"],
+            attention_mask=inputs["attention_mask"],
+            labels=inputs["decoder_output"],
+        )
+        current_loss = current_output.loss
+        loss -= current_loss
+    print(f'Loss before fischer: {loss}')
 
-    model.train_adapter("temporary")
-    model.set_active_adapters("temporary")
+    fisher_target, param_target = compute_fisher(task_loader, model, current_task_id)
+    fisher_source, param_source = compute_fisher(task_loader, model, task_id)
+
+    loss = 0
+    for idx, inputs in enumerate(task_loader):
+        current_output = model.model(
+            input_ids=inputs["encoder_input"],
+            attention_mask=inputs["attention_mask"],
+            labels=inputs["decoder_output"],
+        )
+        current_loss = current_output.loss
+        loss -= current_loss
+    print(f'Loss before temporary: {loss}')
+
+    model.model.train_adapter("temporary")
+    model.model.set_active_adapters("temporary")
 
     best_score = float("-inf")
     best_weights = None
-    for lamb in range(0.1, 1, 0.1):
+    for lamb in tqdm(torch.linspace(0.1, 1, 10)):
+        tqdm.write(f'Trying lambda = {lamb}')
         weights = set_params(
             model,
             fisher_source,
@@ -64,20 +101,30 @@ def score_merge(current_task_id, task_id, task_loader, model):
         if score > best_score:
             best_score = score
             best_weights = weights
+        if best_weights is None:
+            best_weights = weights
 
     return best_score, best_weights
 
 
 def evaluate(task_loader, model):
     model.eval()
+
+    model.model.set_active_adapters("temporary")
+
     loss = 0
-    with torch.no_grad():
-        for idx, inputs in enumerate(task_loader):
-            loss -= model.model(
-                input_ids=inputs["encoder_input"],
-                attention_mask=inputs["attention_mask"],
-                labels=inputs["decoder_output"],
-            )[0]
+    for idx, inputs in enumerate(task_loader):
+        current_output = model.model(
+            input_ids=inputs["encoder_input"],
+            attention_mask=inputs["attention_mask"],
+            labels=inputs["decoder_output"],
+        )
+        current_loss = current_output.loss
+        loss -= current_loss
+
+    if torch.isnan(torch.tensor(loss)):
+        tqdm.write('Evaluated loss is NaN (Skipping)')
+        loss = float('-inf')
 
     return loss
 
@@ -89,7 +136,7 @@ def set_params(
     lamb_2 = 1 - lamb
     for name, param in model.named_parameters():
         if param.requires_grad:
-            prefix, suffix = name.split(".temporary.")
+            prefix, suffix = name_parser("temporary", original_name=name)
             name = prefix + suffix
             source_fish = fisher_source[name]
             target_fish = fisher_target[name]
@@ -97,27 +144,29 @@ def set_params(
             target = param_target[name]
             reg = (lamb * source_fish) + (lamb_2 * target_fish)
             # Default to Target if Fisher is small
-            if reg < 1e-8:
+            if torch.norm(reg) < 1e-8:
                 merge = target
             else:
                 merge = (
                     (lamb * source_fish * source) + (lamb_2 * target_fish * target)
                 ) / reg
-            param.copy_(merge)
+            with torch.no_grad():
+                param.copy_(merge)
             param_dict[prefix + "." + target_id + "." + suffix] = merge
     return param_dict
 
 
 def compute_fisher(task_loader, model, task_id, num_samples=1024):
-    model.train_adapter(task_id)
-    model.set_active_adapters(task_id)
+
+    model.model.train_adapter(task_id)
+    model.model.set_active_adapters(task_id)
     gradients_dict = {}
     param_dict = {}
 
     for name, param in model.named_parameters():
         # Only Compute For Active Adapter
         if param.requires_grad:
-            prefix, suffix = name.split("." + task_id + ".")
+            prefix, suffix = name_parser(task_id, name)
             name = prefix + suffix
             param_dict[name] = param
             gradients_dict[name] = torch.zeros_like(param)
@@ -140,7 +189,7 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
 
         for name, param in model.named_parameters():
             if param.requires_grad:
-                prefix, suffix = name.split("." + task_id + ".")
+                prefix, suffix = name_parser(task_id, name)
                 name = prefix + suffix
                 gradients_dict[name] += torch.square(param.grad).data
 

@@ -56,10 +56,12 @@ class Seq2SeqToD(pl.LightningModule):
         if args.CL == "ADAPTER":
             reduction = round(model.config.d_model / args.bottleneck_size)
             adapter_config = HoulsbyConfig(reduction_factor=reduction)
+            self.adapters = []
             for i in range(args.number_of_adpt):
                 # Initialize All Adapters with the same seed
                 torch.manual_seed(0)
                 model.add_adapter(str(i), config=adapter_config)
+                self.adapters.append(str(i))
             model.add_adapter("temporary", config=adapter_config)
 
         self.model = model
