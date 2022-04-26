@@ -58,12 +58,12 @@ def score_merge(current_task_id, task_id, task_loader, model):
     fisher_source, param_source = compute_fisher(task_loader, model, task_id)
 
     model.model.train_adapter("temporary")
-    model.model.set_active_adapters("temporary")
 
     best_score = float("-inf")
     best_weights = None
     for lamb in tqdm(torch.linspace(0.1, 1, 10)):
         tqdm.write(f'Trying lambda = {lamb}')
+        model.model.set_active_adapters("temporary")
         weights = set_params(
             model,
             fisher_source,
@@ -73,8 +73,10 @@ def score_merge(current_task_id, task_id, task_loader, model):
             lamb,
             current_task_id,
         )
+
+        model.model.set_active_adapters(model.adapters)
         score = evaluate(task_loader, model)
-        print(f"Calculated score = {score} with lambda = {lamb}")
+        tqdm.write(f"Calculated score = {score} with lambda = {lamb}")
         if score > best_score:
             best_score = score
             best_weights = weights
@@ -86,8 +88,6 @@ def score_merge(current_task_id, task_id, task_loader, model):
 
 def evaluate(task_loader, model):
     model.eval()
-
-    model.model.set_active_adapters(model.adapters)
 
     loss = 0
     for idx, inputs in enumerate(task_loader):
