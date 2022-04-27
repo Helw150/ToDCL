@@ -60,13 +60,10 @@ def score_merge(current_task_id, task_id, task_loader, model):
     fisher_target, param_target = compute_fisher(task_loader, model, current_task_id)
     fisher_source, param_source = compute_fisher(task_loader, model, task_id)
 
-    model.model.train_adapter("temporary")
-
     best_score = float("-inf")
     best_weights = None
     for lamb in tqdm(torch.linspace(0.1, 1, 10)):
         tqdm.write(f'Trying lambda = {lamb}')
-        model.model.set_active_adapters("temporary")
         weights = set_params(
             model,
             fisher_source,
@@ -117,25 +114,33 @@ def set_params(
 ):
     param_dict = {}
     lamb_2 = 1 - lamb
-    with torch.no_grad():
-        for name, param in model.named_parameters():
-            if param.requires_grad:
-                prefix, suffix = name_parser("temporary", original_name=name)
-                name = prefix + suffix
-                source_fish = fisher_source[name]
-                target_fish = fisher_target[name]
-                source = param_source[name]
-                target = param_target[name]
-                reg = (lamb * source_fish) + (lamb_2 * target_fish)
-                # Default to Target if Fisher is small
-                if torch.norm(reg) < 1e-8:
-                    merge = target
-                else:
-                    merge = (
-                        (lamb * source_fish * source) + (lamb_2 * target_fish * target)
-                    ) / reg
-                param.data.copy_(merge)
-                param_dict[prefix + "." + target_id + "." + suffix] = merge
+    model.model.train_adapter("temporary")
+    model.model.set_active_adapters("temporary")
+    for name, param in model.named_parameters():
+        if param.requires_grad:
+            prefix, suffix = name_parser("temporary", original_name=name)
+            name = prefix + suffix
+            source_fish = fisher_source[name] / torch.norm(fisher_source[name])
+            target_fish = fisher_target[name] / torch.norm(fisher_target[name])
+
+            # Fisher Flooring
+            source_fish[source_fish <= 1e-6] = 1e-6
+            target_fish[target_fish <= 1e-6] = 1e-6
+
+            source = param_source[name]
+            target = param_target[name]
+
+            original_min = torch.min(target)
+            original_max = torch.max(target)
+
+            # Default to Target if Fisher is small
+            normalization_factor = (lamb * source_fish + lamb_2 * target_fish)
+            merge = (
+                (lamb * source_fish * source) + (lamb_2 * target_fish * target)
+            ) / normalization_factor
+            merge = torch.clamp(merge, original_min, original_max)
+            param.data.copy_(merge)
+            param_dict[prefix + "." + target_id + "." + suffix] = merge
     return param_dict
 
 
