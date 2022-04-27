@@ -60,7 +60,8 @@ class Seq2SeqToD(pl.LightningModule):
             for i in range(args.number_of_adpt):
                 # Initialize All Adapters with the same seed
                 torch.manual_seed(50)
-                model.add_adapter(str(i), config=adapter_config)
+                adapter_name = f"task_{i}_adapter"
+                model.add_adapter(adapter_name, config=adapter_config)
                 self.adapters.append(str(i))
             model.add_adapter("temporary", config=adapter_config)
 
@@ -149,9 +150,9 @@ class Seq2SeqToD(pl.LightningModule):
 
         ## LOSS ON CURRENT DATA
         if self.CL == "ADAPTER":
-            task_id = str(self.task_list_seen.index(batch["task_id"][0]))
-            self.model.train_adapter(task_id)
-            self.model.set_active_adapters(task_id)
+            task_id = self.task_list_seen.index(batch["task_id"][0])
+            self.model.train_adapter(self.adapters[task_id])
+            self.model.set_active_adapters(self.adapters[task_id])
         loss = self.model(
             input_ids=batch["encoder_input"],
             attention_mask=batch["attention_mask"],
@@ -228,9 +229,9 @@ class Seq2SeqToD(pl.LightningModule):
 
     def validation_step(self, batch, batch_idx):
         if self.CL == "ADAPTER":
-            task_id = str(self.task_list_seen.index(batch["task_id"][0]))
-            self.model.train_adapter(task_id)
-            self.model.set_active_adapters(task_id)
+            task_id = self.task_list_seen.index(batch["task_id"][0])
+            self.model.train_adapter(self.adapters[task_id])
+            self.model.set_active_adapters(self.adapters[task_id])
         loss = self.model(
             input_ids=batch["encoder_input"],
             attention_mask=batch["attention_mask"],
