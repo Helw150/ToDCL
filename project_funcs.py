@@ -155,7 +155,7 @@ def set_params(
 
 
 def compute_fisher(task_loader, model, task_id, num_samples=1024):
-    torch.seed(50)
+    torch.manual_seed(50)
     model.train_adapter(task_id)
     model.set_active_adapters(task_id)
     gradients_dict = {}
