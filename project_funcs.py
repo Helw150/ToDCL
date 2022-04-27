@@ -130,15 +130,11 @@ def set_params(
             source = param_source[name]
             target = param_target[name]
 
-            original_min = torch.min(target)
-            original_max = torch.max(target)
-
             # Default to Target if Fisher is small
             normalization_factor = (lamb * source_fish + lamb_2 * target_fish)
             merge = (
                 (lamb * source_fish * source) + (lamb_2 * target_fish * target)
             ) / normalization_factor
-            merge = torch.clamp(merge, original_min, original_max)
             param.data.copy_(merge)
             param_dict[prefix + "." + target_id + "." + suffix] = merge
     return param_dict

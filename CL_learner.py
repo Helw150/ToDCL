@@ -59,7 +59,7 @@ class Seq2SeqToD(pl.LightningModule):
             self.adapters = []
             for i in range(args.number_of_adpt):
                 # Initialize All Adapters with the same seed
-                torch.manual_seed(0)
+                torch.manual_seed(50)
                 model.add_adapter(str(i), config=adapter_config)
                 self.adapters.append(str(i))
             model.add_adapter("temporary", config=adapter_config)
