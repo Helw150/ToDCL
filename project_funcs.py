@@ -63,7 +63,6 @@ def score_merge(current_task_id, task_id, task_loader, model):
     best_score = float("-inf")
     best_weights = param_target
     for lamb in tqdm(torch.linspace(0.1, 1, 10)):
-        tqdm.write(f'Trying lambda = {lamb}')
         weights = set_params(
             model,
             fisher_source,
