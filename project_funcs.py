@@ -88,8 +88,11 @@ def score_merge(current_task_id, task_id, task_loader, model):
 def evaluate(task_loader, model):
     model.eval()
 
+    nan_counter = 0
+    total_counter = 0
     loss = 0
     for idx, inputs in enumerate(task_loader):
+        total_counter += 1
         for k, v in inputs.items():
             if isinstance(v, torch.Tensor):
                 if torch.cuda.is_available():
@@ -101,9 +104,14 @@ def evaluate(task_loader, model):
             labels=inputs["decoder_output"],
         )
         current_loss = current_output.loss
+        if torch.isnan(torch.tensor(current_loss)):
+            nan_counter += 1
+            current_loss = 0
+
         loss -= current_loss
 
-    if torch.isnan(torch.tensor(loss)):
+    # Skip NANS if less than 5% NAN
+    if nan_counter / total_counter >= 0.05:
         loss = float('-inf')
 
     return loss
