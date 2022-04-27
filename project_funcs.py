@@ -102,17 +102,19 @@ def evaluate(task_loader, model, return_nan_percentage = False):
                 if torch.cuda.is_available():
                     inputs[k] = v.cuda()
 
-        current_output = model.model(
+        current_loss  = model.model(
             input_ids=inputs["encoder_input"],
             attention_mask=inputs["attention_mask"],
             labels=inputs["decoder_output"],
-        )
-        current_loss = current_output.loss
+        ).loss
         if torch.isnan(torch.tensor(current_loss)):
             nan_counter += 1
             current_loss = 0
 
-        loss -= current_loss
+        # This detaches the gradient
+        loss -= float(current_loss)
+
+        del current_loss
 
     # Skip NANS if less than 5% NAN
     nan_percentage = nan_counter / total_counter
@@ -198,6 +200,9 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
                 prefix, suffix = name_parser(task_id, name)
                 name = prefix + suffix
                 gradients_dict[name] += torch.square(param.grad).data
+
+        # Freeing some GPU references
+        del loss
 
     model.zero_grad()
 
