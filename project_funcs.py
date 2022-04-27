@@ -2,6 +2,9 @@ import torch
 from tqdm import tqdm
 
 def update_adapters(task_name, task_loader, model):
+    if torch.cuda.is_available():
+        model.cuda()
+
     new_adapter_weights = find_best_merge(task_name, task_loader, model)
     # Modify the weights of the adapters based on what is returned
     active_state_dict = model.state_dict()
@@ -74,7 +77,6 @@ def score_merge(current_task_id, task_id, task_loader, model):
             current_task_id,
         )
 
-        model.model.set_active_adapters(model.adapters)
         score = evaluate(task_loader, model)
         tqdm.write(f"Calculated score = {score} with lambda = {lamb}")
         if score > best_score:
@@ -93,7 +95,8 @@ def evaluate(task_loader, model):
     for idx, inputs in enumerate(task_loader):
         for k, v in inputs.items():
             if isinstance(v, torch.Tensor):
-                inputs[k] = v
+                if torch.cuda.is_available():
+                    inputs[k] = v.cuda()
 
         current_output = model.model(
             input_ids=inputs["encoder_input"],
@@ -131,7 +134,7 @@ def set_params(
                     merge = (
                         (lamb * source_fish * source) + (lamb_2 * target_fish * target)
                     ) / reg
-                param.copy_(merge)
+                param.data.copy_(merge)
                 param_dict[prefix + "." + target_id + "." + suffix] = merge
     return param_dict
 
@@ -157,7 +160,8 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
 
         for k, v in inputs.items():
             if isinstance(v, torch.Tensor):
-                inputs[k] = v
+                if torch.cuda.is_available():
+                    inputs[k] = v.cuda()
 
         loss = model.model(
             input_ids=inputs["encoder_input"],
