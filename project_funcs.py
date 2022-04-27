@@ -74,8 +74,8 @@ def score_merge(current_task_id, task_id, task_loader, model):
             current_task_id,
         )
 
-        score = evaluate(task_loader, model)
-        tqdm.write(f"Calculated score = {score} with lambda = {lamb}")
+        score, nan_percentage = evaluate(task_loader, model, return_nan_percentage = True)
+        tqdm.write(f"Calculated score = {score} with lambda = {lamb} and NAN % = {nan_percentage}")
         if score > best_score:
             best_score = score
             best_weights = weights
@@ -85,7 +85,7 @@ def score_merge(current_task_id, task_id, task_loader, model):
     return best_score, best_weights
 
 
-def evaluate(task_loader, model):
+def evaluate(task_loader, model, return_nan_percentage = False):
     model.eval()
 
     nan_counter = 0
@@ -115,9 +115,12 @@ def evaluate(task_loader, model):
         loss -= current_loss
 
     # Skip NANS if less than 5% NAN
-    if nan_counter / total_counter >= 0.05:
+    nan_percentage = nan_counter / total_counter
+    if nan_percentage >= 0.05:
         loss = float('-inf')
 
+    if return_nan_percentage:
+        return loss, nan_percentage
     return loss
 
 
@@ -169,6 +172,8 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
 
     for idx, inputs in enumerate(task_loader):
 
+        model.zero_grad()
+
         # Free unused GPU Memory
         torch.cuda.empty_cache()
 
@@ -194,6 +199,6 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
                 name = prefix + suffix
                 gradients_dict[name] += torch.square(param.grad).data
 
-        model.zero_grad()
+    model.zero_grad()
 
     return gradients_dict, param_dict
