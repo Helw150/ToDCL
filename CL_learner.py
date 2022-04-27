@@ -62,7 +62,7 @@ class Seq2SeqToD(pl.LightningModule):
                 torch.manual_seed(50)
                 adapter_name = f"task_{i}_adapter"
                 model.add_adapter(adapter_name, config=adapter_config)
-                self.adapters.append(str(i))
+                self.adapters.append(adapter_name)
             model.add_adapter("temporary", config=adapter_config)
 
         self.model = model
