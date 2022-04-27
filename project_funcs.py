@@ -61,7 +61,7 @@ def score_merge(current_task_id, task_id, task_loader, model):
     fisher_source, param_source = compute_fisher(task_loader, model, task_id)
 
     best_score = float("-inf")
-    best_weights = None
+    best_weights = param_target
     for lamb in tqdm(torch.linspace(0.1, 1, 10)):
         tqdm.write(f'Trying lambda = {lamb}')
         weights = set_params(
@@ -75,11 +75,9 @@ def score_merge(current_task_id, task_id, task_loader, model):
         )
 
         score, nan_percentage = evaluate(task_loader, model, return_nan_percentage = True)
-        tqdm.write(f"Calculated score = {score} with lambda = {lamb} and NAN % = {nan_percentage}")
+        tqdm.write(f"Merging ({task_id} -> {current_task_id}): Calculated score = {score} with lambda = {lamb} and NAN % = {nan_percentage}")
         if score > best_score:
             best_score = score
-            best_weights = weights
-        if best_weights is None:
             best_weights = weights
 
     return best_score, best_weights
