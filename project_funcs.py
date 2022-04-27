@@ -92,6 +92,10 @@ def evaluate(task_loader, model):
     total_counter = 0
     loss = 0
     for idx, inputs in enumerate(task_loader):
+
+        # Free unused GPU Memory
+        torch.cuda.empty_cache()
+
         total_counter += 1
         for k, v in inputs.items():
             if isinstance(v, torch.Tensor):
@@ -164,6 +168,10 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
             gradients_dict[name] = torch.zeros_like(param)
 
     for idx, inputs in enumerate(task_loader):
+
+        # Free unused GPU Memory
+        torch.cuda.empty_cache()
+
         if idx >= num_samples:
             break
 
