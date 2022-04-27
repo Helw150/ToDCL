@@ -37,7 +37,7 @@ def find_best_merge(current_task_name, task_loader, model):
     # Iterate Through and Find Best Merge
     for task_name in tqdm(model.task_list_seen):
         task_id = model.adapters[model.task_list_seen.index(task_name)]
-        score, weights = score_merge(current_task_id, task_id, task_loader, model.model)
+        score, weights = score_merge(current_task_id, task_id, task_loader, model)
         if score > best_score:
             best_score = score
             best_weights = weights
@@ -99,7 +99,7 @@ def evaluate(task_loader, model, return_nan_percentage = False):
                 if torch.cuda.is_available():
                     inputs[k] = v.cuda()
 
-        current_loss = model(
+        current_loss = model.model(
             input_ids=inputs["encoder_input"],
             attention_mask=inputs["attention_mask"],
             labels=inputs["decoder_output"],
@@ -128,8 +128,8 @@ def set_params(
 ):
     param_dict = {}
     lamb_2 = 1 - lamb
-    model.train_adapter("temporary")
-    model.set_active_adapters("temporary")
+    model.model.train_adapter("temporary")
+    model.model.set_active_adapters("temporary")
     for name, param in model.named_parameters():
         if param.requires_grad:
             prefix, suffix = name_parser("temporary", original_name=name)
@@ -156,8 +156,8 @@ def set_params(
 
 def compute_fisher(task_loader, model, task_id, num_samples=1024):
     torch.manual_seed(50)
-    model.train_adapter(task_id)
-    model.set_active_adapters(task_id)
+    model.model.train_adapter(task_id)
+    model.model.set_active_adapters(task_id)
     gradients_dict = {}
     param_dict = {}
 
@@ -184,7 +184,7 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
                 if torch.cuda.is_available():
                     inputs[k] = v.cuda()
 
-        loss = model(
+        loss = model.model(
             input_ids=inputs["encoder_input"],
             attention_mask=inputs["attention_mask"],
             labels=inputs["decoder_output"],
