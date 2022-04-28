@@ -131,6 +131,7 @@ def evaluate(task_loader, model, return_nan_percentage=False):
             attention_mask=inputs["attention_mask"],
             labels=inputs["decoder_output"],
         ).loss
+
         if torch.isnan(torch.tensor(current_loss)):
             nan_counter += 1
             current_loss = 0
@@ -160,8 +161,8 @@ def set_params(
     for name, param in model.named_parameters():
         if param.requires_grad:
             name = get_universal_name("temporary", original_name=name)
-            source_fish = fisher_source[name] / torch.norm(fisher_source[name])
-            target_fish = fisher_target[name] / torch.norm(fisher_target[name])
+            source_fish = fisher_source[name] / torch.linalg.norm(fisher_source[name])
+            target_fish = fisher_target[name] / torch.linalg.norm(fisher_target[name])
 
             # Fisher Flooring
             source_fish[source_fish <= 1e-6] = 1e-6
@@ -175,7 +176,12 @@ def set_params(
             merge = (
                 (lamb * source_fish * source) + (lamb_2 * target_fish * target)
             ) / normalization_factor
-            merge[normalization_factor <= 1e-6] = target[normalization_factor <= 1e-6]
+
+            merge = torch.clamp(
+                merge,
+                torch.min(torch.min(target), torch.min(source)),
+                torch.max(torch.max(target), torch.max(source)),
+            )
             param.data.copy_(merge)
             param_dict[get_unique_name(target_id, name)] = merge
     return param_dict
