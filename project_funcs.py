@@ -88,6 +88,8 @@ def score_merge(current_task_id, task_id, task_loader, model):
         f"Starting ({current_task_id}): Calculated score = {score}  and NAN % = {nan_percentage}"
     )
     for lamb in tqdm(torch.linspace(0.1, 1, 10)):
+
+        assert_same = current_task_id == task_id
         weights = set_params(
             model,
             fisher_source,
@@ -96,6 +98,7 @@ def score_merge(current_task_id, task_id, task_loader, model):
             param_target,
             lamb,
             current_task_id,
+            assert_same=assert_same,
         )
 
         score, nan_percentage = evaluate(task_loader, model, return_nan_percentage=True)
@@ -152,7 +155,15 @@ def evaluate(task_loader, model, return_nan_percentage=False):
 
 
 def set_params(
-    model, fisher_source, param_source, fisher_target, param_target, lamb, target_id
+    model,
+    fisher_source,
+    param_source,
+    fisher_target,
+    param_target,
+    lamb,
+    target_id,
+    assert_same=False,
+    ignore_fisher_cutoff=1e-6,
 ):
     param_dict = {}
     lamb_2 = 1 - lamb
@@ -161,15 +172,28 @@ def set_params(
     for name, param in model.named_parameters():
         if param.requires_grad:
             name = get_universal_name("temporary", original_name=name)
-            source_fish = fisher_source[name] / torch.linalg.norm(fisher_source[name])
-            target_fish = fisher_target[name] / torch.linalg.norm(fisher_target[name])
+            fisher_source_norm = torch.linalg.norm(fisher_source[name])
+            fisher_target_norm = torch.linalg.norm(fisher_target[name])
+
+            source = param_source[name]
+            target = param_target[name]
+
+            if (
+                fisher_source_norm <= ignore_fisher_cutoff
+                or fisher_target_norm <= ignore_fisher_cutoff
+            ):
+                # Theres no point in merging because our fisher matrices
+                # are just 0.
+                param.data.copy_(target)
+                param_dict[get_unique_name(target_id, name)] = target
+                continue
+
+            source_fish = fisher_source[name] / fisher_source_norm
+            target_fish = fisher_target[name] / fisher_target_norm
 
             # Fisher Flooring
             source_fish[source_fish <= 1e-6] = 1e-6
             target_fish[target_fish <= 1e-6] = 1e-6
-
-            source = param_source[name]
-            target = param_target[name]
 
             # Default to Target if Fisher is small
             normalization_factor = lamb * source_fish + lamb_2 * target_fish
@@ -177,11 +201,17 @@ def set_params(
                 (lamb * source_fish * source) + (lamb_2 * target_fish * target)
             ) / normalization_factor
 
-            merge = torch.clamp(
-                merge,
-                torch.min(torch.min(target), torch.min(source)),
-                torch.max(torch.max(target), torch.max(source)),
-            )
+            if assert_same and (not torch.allclose(target, merge)):
+                tqdm.write("Model merging with self was not an identity operation!")
+                tqdm.write(f"Original Params: {target}")
+                tqdm.write(f"Raw Target Fisher: {fisher_target[name]}")
+                tqdm.write(f"Normalized Target Fisher: {target_fish}")
+                tqdm.write(f"Source Params: {source}")
+                tqdm.write(f"Raw Source Fisher: {fisher_source[name]}")
+                tqdm.write(f"Normalized Source Fisher: {source_fish}")
+                tqdm.write(f"Merged Params: {merge}")
+                raise ArithmeticError("Merging operation did not perform as expected.")
+
             param.data.copy_(merge)
             param_dict[get_unique_name(target_id, name)] = merge
     return param_dict
