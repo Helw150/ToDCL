@@ -1,6 +1,7 @@
 import torch
 from tqdm import tqdm
 
+
 def update_adapters(task_name, task_loader, model):
     if torch.cuda.is_available():
         model.cuda()
@@ -8,12 +9,19 @@ def update_adapters(task_name, task_loader, model):
     new_adapter_weights = find_best_merge(task_name, task_loader, model)
     # Modify the weights of the adapters based on what is returned
     active_state_dict = model.state_dict()
-    task_id = str(model.task_list_seen.index(task_name))
+    task_id = model.adapters[model.task_list_seen.index(task_name)]
 
     # Change the current model to have adapter weights that were
     # selected by [find_best_merge]
     for layer_name, new_tensor_weight in new_adapter_weights.items():
-        assert active_state_dict.get(layer_name) is not None
+        if active_state_dict.get(layer_name) is None:
+            layer_name = get_unique_name(task_id, layer_name)
+        if active_state_dict.get(layer_name) is None:
+            print(f"Tried to insert {layer_name} but no such layer existed")
+            all_str = "\n\t".join(active_state_dict.keys())
+            print(f"Existing layers are: \n\t{all_str}")
+            raise LookupError(f"Impossible state reached: can't insert {layer_name}")
+
         active_state_dict[layer_name] = new_tensor_weight
 
     model.load_state_dict(active_state_dict)
@@ -30,7 +38,7 @@ def find_best_merge(current_task_name, task_loader, model):
     # In the code they check if ["adapter" in layer_name] to determine
     # if this is an adapter layer
 
-    best_score = float('-inf')
+    best_score = float("-inf")
     best_weights = None
 
     current_task_id = model.adapters[model.task_list_seen.index(current_task_name)]
@@ -46,13 +54,25 @@ def find_best_merge(current_task_name, task_loader, model):
 
     return best_weights
 
+
 def name_parser(task_id, original_name):
     # Experimentally, the task id seems to be put at index 7
-    parts = original_name.split(".")
-    assert parts[7] == task_id
-    prefix = ".".join(parts[:7])
-    suffix = ".".join(parts[8:])
+    parts = original_name.split(f".{task_id}.")
+    assert len(parts) == 2
+    prefix = parts[0]
+    suffix = parts[1]
     return prefix, suffix
+
+
+def get_universal_name(task_id, original_name):
+    prefix, suffix = name_parser(task_id, original_name)
+    return prefix + ".UNIVERSAL_TASK_ADAPTER." + suffix
+
+
+def get_unique_name(task_id, original_name):
+    prefix, suffix = name_parser("UNIVERSAL_TASK_ADAPTER", original_name)
+    return prefix + f".{task_id}." + suffix
+
 
 def score_merge(current_task_id, task_id, task_loader, model):
     score = None
@@ -60,8 +80,13 @@ def score_merge(current_task_id, task_id, task_loader, model):
     fisher_target, param_target = compute_fisher(task_loader, model, current_task_id)
     fisher_source, param_source = compute_fisher(task_loader, model, task_id)
 
-    best_score = float("-inf")
+    model.model.set_active_adapters(current_task_id)
+    score, nan_percentage = evaluate(task_loader, model, return_nan_percentage=True)
+    best_score = score
     best_weights = param_target
+    tqdm.write(
+        f"Starting ({current_task_id}): Calculated score = {score}  and NAN % = {nan_percentage}"
+    )
     for lamb in tqdm(torch.linspace(0.1, 1, 10)):
         weights = set_params(
             model,
@@ -73,8 +98,10 @@ def score_merge(current_task_id, task_id, task_loader, model):
             current_task_id,
         )
 
-        score, nan_percentage = evaluate(task_loader, model, return_nan_percentage = True)
-        tqdm.write(f"Merging ({task_id} -> {current_task_id}): Calculated score = {score} with lambda = {lamb} and NAN % = {nan_percentage}")
+        score, nan_percentage = evaluate(task_loader, model, return_nan_percentage=True)
+        tqdm.write(
+            f"Merging ({task_id} -> {current_task_id}): Calculated score = {score} with lambda = {lamb} and NAN % = {nan_percentage}"
+        )
         if score > best_score:
             best_score = score
             best_weights = weights
@@ -82,7 +109,7 @@ def score_merge(current_task_id, task_id, task_loader, model):
     return best_score, best_weights
 
 
-def evaluate(task_loader, model, return_nan_percentage = False):
+def evaluate(task_loader, model, return_nan_percentage=False):
     model.eval()
 
     nan_counter = 0
@@ -99,7 +126,7 @@ def evaluate(task_loader, model, return_nan_percentage = False):
                 if torch.cuda.is_available():
                     inputs[k] = v.cuda()
 
-        current_loss  = model.model(
+        current_loss = model.model(
             input_ids=inputs["encoder_input"],
             attention_mask=inputs["attention_mask"],
             labels=inputs["decoder_output"],
@@ -116,7 +143,7 @@ def evaluate(task_loader, model, return_nan_percentage = False):
     # Skip NANS if less than 5% NAN
     nan_percentage = nan_counter / total_counter
     if nan_percentage >= 0.05:
-        loss = float('-inf')
+        loss = float("-inf")
 
     if return_nan_percentage:
         return loss, nan_percentage
@@ -132,8 +159,7 @@ def set_params(
     model.model.set_active_adapters("temporary")
     for name, param in model.named_parameters():
         if param.requires_grad:
-            prefix, suffix = name_parser("temporary", original_name=name)
-            name = prefix + suffix
+            name = get_universal_name("temporary", original_name=name)
             source_fish = fisher_source[name] / torch.norm(fisher_source[name])
             target_fish = fisher_target[name] / torch.norm(fisher_target[name])
 
@@ -145,17 +171,18 @@ def set_params(
             target = param_target[name]
 
             # Default to Target if Fisher is small
-            normalization_factor = (lamb * source_fish + lamb_2 * target_fish)
+            normalization_factor = lamb * source_fish + lamb_2 * target_fish
             merge = (
                 (lamb * source_fish * source) + (lamb_2 * target_fish * target)
             ) / normalization_factor
+            merge[normalization_factor <= 1e-6] = target[normalization_factor <= 1e-6]
             param.data.copy_(merge)
-            param_dict[prefix + "." + target_id + "." + suffix] = merge
+            param_dict[get_unique_name(target_id, name)] = merge
     return param_dict
 
 
 def compute_fisher(task_loader, model, task_id, num_samples=1024):
-
+    torch.manual_seed(50)
     model.model.train_adapter(task_id)
     model.model.set_active_adapters(task_id)
     gradients_dict = {}
@@ -164,8 +191,7 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
     for name, param in model.named_parameters():
         # Only Compute For Active Adapter
         if param.requires_grad:
-            prefix, suffix = name_parser(task_id, name)
-            name = prefix + suffix
+            name = get_universal_name(task_id, name)
             param_dict[name] = param
             gradients_dict[name] = torch.zeros_like(param)
 
@@ -194,8 +220,7 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
 
         for name, param in model.named_parameters():
             if param.requires_grad:
-                prefix, suffix = name_parser(task_id, name)
-                name = prefix + suffix
+                name = get_universal_name(task_id, name)
                 gradients_dict[name] += torch.square(param.grad).data
 
         # Freeing some GPU references
