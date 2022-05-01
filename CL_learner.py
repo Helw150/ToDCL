@@ -63,9 +63,12 @@ class Seq2SeqToD(pl.LightningModule):
                 adapter_name = f"task_{i}_adapter"
                 model.add_adapter(adapter_name, config=adapter_config)
                 self.adapters.append(adapter_name)
-                if args.adapter_load_folder is not None:
-                    path = args.adapter_load_folder + adapter_name + "/"
-                    model.load_adapter(path)
+                try:
+                    if args.adapter_load_folder is not None:
+                        path = args.adapter_load_folder + adapter_name + "/"
+                        model.load_adapter(path)
+                except OSError as e:
+                    print(f"No adapter found for task {i}.")
             model.add_adapter("temporary", config=adapter_config)
 
         self.model = model
