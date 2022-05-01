@@ -175,6 +175,13 @@ def set_params(
             fisher_source_norm = torch.linalg.norm(fisher_source[name])
             fisher_target_norm = torch.linalg.norm(fisher_target[name])
 
+            if (
+                torch.isnan(fisher_source[name]).any()
+                or torch.isnan(fisher_target[name]).any()
+            ):
+                tqdm.write("Fisher matrix is NaN. Skipping!")
+                continue
+
             source = param_source[name]
             target = param_target[name]
 
