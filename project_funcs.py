@@ -43,7 +43,7 @@ def find_best_merge(current_task_name, task_loader, model):
 
     current_task_id = model.adapters[model.task_list_seen.index(current_task_name)]
     # Iterate Through and Find Best Merge
-    for task_name in tqdm(model.task_list_seen):
+    for task_name in tqdm(model.task_list_seen[:-1]):
         task_id = model.adapters[model.task_list_seen.index(task_name)]
         score, weights = score_merge(current_task_id, task_id, task_loader, model)
         if score > best_score:

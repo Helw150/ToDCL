@@ -148,6 +148,10 @@ def train(hparams, *args):
         for task_num, (task_id, task_loader) in enumerate(train_loader.items()):
             model.task_list_seen.append(task_id)
 
+            # skip till start at
+            if task_num < hparams.start_at_task:
+                continue
+
             # Skip if this is not the requested task
             if hparams.task_number != -1:
                 print(f"Only training ({ hparams.task_number }) currently ({task_num})")
@@ -436,6 +440,9 @@ if __name__ == "__main__":
 
     # Add an adapter load folder
     parser.add_argument("--adapter_load_folder", type=str, default=None)
+
+    # Start At Specific Adapter
+    parser.add_argument("--start_at_task", default=0, type=int)
 
     hyperparams = parser.parse_args()
     train(hyperparams)
