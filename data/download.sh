@@ -1,15 +1,14 @@
 #!/bin/bash
 # SGD dataset
-git clone https://github.com/google-research-datasets/dstc8-schema-guided-dialogue.git
-
-
-#!/bin/bash
-# TM
-git clone https://github.com/google-research-datasets/Taskmaster.git
+git clone --depth 1 https://github.com/google-research-datasets/dstc8-schema-guided-dialogue.git &
+git clone --depth 1 https://github.com/google-research-datasets/Taskmaster.git &
+git clone --depth 1 https://github.com/budzianowski/multiwoz.git &
 
 # MWOZ
 pip install absl-py
-git clone https://github.com/budzianowski/multiwoz.git
+
+wait
+
 cd multiwoz/data
 unzip MultiWOZ_2.1
 cd MultiWOZ_2.2

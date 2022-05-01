@@ -185,7 +185,13 @@ def train(hparams, *args):
                     )
 
             ## CORE
+
             print()
+            if hparams.CL == "ADAPTER":
+                print(f"Adapting for: {model.adapters[task_num]}")
+                model.model.train_adapter(model.adapters[task_num])
+                model.model.set_active_adapters(model.adapters[task_num])
+
             print(f"TASK:{task_id}")
             start = time.time()
             train_parameters = {
