@@ -27,7 +27,7 @@ from collections import defaultdict
 from CL_learner import Seq2SeqToD
 from project_funcs import update_adapters
 
-from argparse import ArgumentParser
+from argparse import ArgumentParser, FileType
 
 import subprocess
 import numpy as np
@@ -147,6 +147,11 @@ def train(hparams, *args):
     elif hparams.continual:
         for task_num, (task_id, task_loader) in enumerate(train_loader.items()):
             model.task_list_seen.append(task_id)
+
+            # Skip if this is not the requested task
+            if hparams.task_number != -1:
+                if task_num != hparams.task_number:
+                    continue
 
             if hparams.CL == "REPLAY":
                 print(f"Memory Size {len(model.reply_memory)}")
@@ -270,6 +275,9 @@ def train(hparams, *args):
             elif hparams.merge == True and hparams.CL == "ADAPTER":
                 model = update_adapters(task_id, val_loader[task_id], model)
 
+            # Dump adapters to save path
+            if hparams.adapter_save_folder is not None:
+                model.model.save_adapter(hparams.adapter_save_folder, task_id)
             ## END CORE
 
             model.first_task = False
@@ -411,6 +419,12 @@ if __name__ == "__main__":
     parser.add_argument("--merge", action="store_true")
     # options=[1,2,3,4,5]
     parser.add_argument("--seed", default=1, type=int)
+
+    # Add option to train specific task
+    parser.add_argument("--task_number", default=-1, type=int)
+
+    # Add save folder
+    parser.add_argument("--adapter_save_folder", type=str, default=None)
 
     hyperparams = parser.parse_args()
     train(hyperparams)
