@@ -275,9 +275,11 @@ def train(hparams, *args):
             elif hparams.merge == True and hparams.CL == "ADAPTER":
                 model = update_adapters(task_id, val_loader[task_id], model)
 
-            # Dump adapters to save path
+            # Dump adapter to save path
             if hparams.adapter_save_folder is not None:
-                model.model.save_adapter(hparams.adapter_save_folder, task_id)
+                model.model.save_adapter(
+                    hparams.adapter_save_folder, model.adapters[task_num]
+                )
             ## END CORE
 
             model.first_task = False
