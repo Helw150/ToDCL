@@ -179,7 +179,6 @@ def set_params(
                 torch.isnan(fisher_source[name]).any()
                 or torch.isnan(fisher_target[name]).any()
             ):
-                tqdm.write("Fisher matrix is NaN. Skipping!")
                 continue
 
             source = param_source[name]
