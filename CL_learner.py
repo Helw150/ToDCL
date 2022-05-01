@@ -65,7 +65,7 @@ class Seq2SeqToD(pl.LightningModule):
                 self.adapters.append(adapter_name)
                 if args.adapter_load_folder is not None:
                     path = args.adapter_load_folder + adapter_name + "/"
-                    model.load_adapter(path, adapter_name)
+                    model.load_adapter(path)
             model.add_adapter("temporary", config=adapter_config)
 
         self.model = model
