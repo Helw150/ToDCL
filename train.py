@@ -332,21 +332,22 @@ def train(hparams, *args):
                     model.model.zero_grad()
             task_seen_so_far.append(task_id)
 
-        model.model.save_pretrained(f"{hparams.saving_dir}")
-        model.tokenizer.save_pretrained(f"{hparams.saving_dir}")
-        if hparams.CL == "ADAPTER":
-            test_model_seq2seq_ADAPTER(
-                hparams,
-                model,
-                model.tokenizer,
-                dev_val_loader,
-                test_datasets,
-                time=f"FINAL",
-            )
-        else:
-            test_model_seq2seq(
-                hparams, model.model, model.tokenizer, dev_val_loader, time=f"FINAL"
-            )
+        if hparams.task_number == -1:
+            model.model.save_pretrained(f"{hparams.saving_dir}")
+            model.tokenizer.save_pretrained(f"{hparams.saving_dir}")
+            if hparams.CL == "ADAPTER":
+                test_model_seq2seq_ADAPTER(
+                    hparams,
+                    model,
+                    model.tokenizer,
+                    dev_val_loader,
+                    test_datasets,
+                    time=f"FINAL",
+                )
+            else:
+                test_model_seq2seq(
+                    hparams, model.model, model.tokenizer, dev_val_loader, time=f"FINAL"
+                )
 
 
 if __name__ == "__main__":
