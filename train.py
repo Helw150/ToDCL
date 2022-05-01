@@ -150,6 +150,7 @@ def train(hparams, *args):
 
             # Skip if this is not the requested task
             if hparams.task_number != -1:
+                print(f"Only training ({ hparams.task_number }) currently ({task_num})")
                 if task_num != hparams.task_number:
                     continue
 
@@ -277,9 +278,10 @@ def train(hparams, *args):
 
             # Dump adapter to save path
             if hparams.adapter_save_folder is not None:
-                model.model.save_adapter(
-                    hparams.adapter_save_folder, model.adapters[task_num]
-                )
+                path = hparams.adapter_save_folder + model.adapters[task_num] + "/"
+                if not os.path.exists(path):
+                    os.makedirs(path)
+                model.model.save_adapter(path, model.adapters[task_num])
             ## END CORE
 
             model.first_task = False
