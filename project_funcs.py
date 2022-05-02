@@ -123,14 +123,15 @@ def score_merge(current_task_id, task_id, task_loader, model, task_num=-1):
     return best_score, best_weights
 
 
-def evaluate(task_loader, model, return_nan_percentage=False):
+def evaluate(task_loader, model, return_nan_percentage=False, eval_limit=2048):
     model.eval()
 
     nan_counter = 0
     total_counter = 0
     loss = 0
     for idx, inputs in enumerate(task_loader):
-
+        if idx > eval_limit:
+            break
         # Free unused GPU Memory
         torch.cuda.empty_cache()
 
