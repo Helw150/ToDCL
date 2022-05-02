@@ -89,7 +89,8 @@ def score_merge(current_task_id, task_id, task_loader, model):
     tqdm.write(
         f"Starting ({current_task_id}): Calculated score = {score}  and NAN % = {nan_percentage}"
     )
-    for lamb in tqdm(torch.linspace(0.1, 1, 10)):
+    partitions = [0.01, 0.03, 0.05, 0.08, 0.1, 0.2, 0.4, 0.6, 0.8, 1]
+    for lamb in tqdm(partitions):
 
         assert_same = current_task_id == task_id
         weights = set_params(
