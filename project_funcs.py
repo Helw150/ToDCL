@@ -7,6 +7,8 @@ def update_adapters(task_name, task_loader, model):
         model.cuda()
 
     new_adapter_weights = find_best_merge(task_name, task_loader, model)
+    if new_adapter_weights is None:
+        return model
     # Modify the weights of the adapters based on what is returned
     active_state_dict = model.state_dict()
     task_id = model.adapters[model.task_list_seen.index(task_name)]
