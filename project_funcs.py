@@ -43,11 +43,14 @@ def find_best_merge(current_task_name, task_loader, model):
     best_score = float("-inf")
     best_weights = None
 
-    current_task_id = model.adapters[model.task_list_seen.index(current_task_name)]
+    task_num = model.task_list_seen.index(current_task_name)
+    current_task_id = model.adapters[task_num]
     # Iterate Through and Find Best Merge
     for task_name in tqdm(model.task_list_seen[:-1]):
         task_id = model.adapters[model.task_list_seen.index(task_name)]
-        score, weights = score_merge(current_task_id, task_id, task_loader, model)
+        score, weights = score_merge(
+            current_task_id, task_id, task_loader, model, task_num=task_num
+        )
         if score > best_score:
             best_score = score
             best_weights = weights
@@ -76,7 +79,7 @@ def get_unique_name(task_id, original_name):
     return prefix + f".{task_id}." + suffix
 
 
-def score_merge(current_task_id, task_id, task_loader, model):
+def score_merge(current_task_id, task_id, task_loader, model, task_num=-1):
     score = None
 
     fisher_target, param_target = compute_fisher(task_loader, model, current_task_id)
@@ -90,6 +93,11 @@ def score_merge(current_task_id, task_id, task_loader, model):
         f"Starting ({current_task_id}): Calculated score = {score}  and NAN % = {nan_percentage}"
     )
     partitions = [0.01, 0.03, 0.05, 0.08, 0.1, 0.2, 0.4, 0.6, 0.8, 1]
+
+    # So that training finishes
+    if task_num > 25:
+        partitions = partitions[:5]
+
     for lamb in tqdm(partitions):
 
         assert_same = current_task_id == task_id
