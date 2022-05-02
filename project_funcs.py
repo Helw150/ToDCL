@@ -132,9 +132,6 @@ def evaluate(task_loader, model, return_nan_percentage=False, eval_limit=2048):
     for idx, inputs in enumerate(task_loader):
         if idx > eval_limit:
             break
-        # Free unused GPU Memory
-        torch.cuda.empty_cache()
-
         total_counter += 1
         for k, v in inputs.items():
             if isinstance(v, torch.Tensor):
@@ -252,9 +249,6 @@ def compute_fisher(task_loader, model, task_id, num_samples=1024):
     for idx, inputs in enumerate(task_loader):
 
         model.zero_grad()
-
-        # Free unused GPU Memory
-        torch.cuda.empty_cache()
 
         if idx >= num_samples:
             break
