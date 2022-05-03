@@ -323,8 +323,9 @@ def test_model_seq2seq_ADAPTER(
     for t in range(range_adpt):
         print(f"Task {t}")
         for idx_b, batch in tqdm(enumerate(test_loader), total=len(test_loader)):
+            task_id = model.adapters[t]
             ppl_batch = model.compute_PPL(
-                batch, task_id=t, device=device, tokenizer=tokenizer
+                batch, task_id=task_id, device=device, tokenizer=tokenizer
             )  ## one value per batch
             for (d_id, t_id, ta_id, ppl) in zip(
                 batch["dial_id"], batch["turn_id"], batch["task_id"], ppl_batch

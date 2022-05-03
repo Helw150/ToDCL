@@ -97,6 +97,7 @@ class Seq2SeqToD(pl.LightningModule):
 
     def compute_PPL(self, batch, task_id=-1, device="cuda", tokenizer=None):
         # To Implement
+        self.model.set_active_adapters(task_id)
         with torch.no_grad():
             model_out = self.model(
                 input_ids=batch["input_id_PPL"].to(device),
